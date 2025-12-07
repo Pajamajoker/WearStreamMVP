@@ -2,123 +2,95 @@ package com.example.mobile;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import android.media.MediaPlayer;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
-import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
-import android.widget.ListView;
-import android.widget.Toast;
-
-import java.io.File;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.List;
+import android.widget.TextView;
 
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "MainActivity";
 
-    private ListView listView;
-    private ArrayAdapter<String> adapter;
-    private final List<File> recordingFiles = new ArrayList<>();
-    private MediaPlayer mediaPlayer = null;
+    private View statusDot;
+    private TextView tvStatus;
+    private TextView tvDetails;
+
+    private final BroadcastReceiver wsStatusReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (!PhoneStreamService.ACTION_STATUS.equals(intent.getAction())) {
+                return;
+            }
+
+            boolean connected = intent.getBooleanExtra(PhoneStreamService.EXTRA_CONNECTED, false);
+            String status = intent.getStringExtra(PhoneStreamService.EXTRA_STATUS);
+            long bytesSent = intent.getLongExtra(PhoneStreamService.EXTRA_BYTES_SENT, 0L);
+
+            Log.d(TAG, "WS status update: " + status + ", connected=" + connected + ", bytes=" + bytesSent);
+            updateUi(connected, status, bytesSent);
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        listView = findViewById(R.id.listRecordings);
+        statusDot = findViewById(R.id.statusDot);
+        tvStatus = findViewById(R.id.tvStatus);
+        tvDetails = findViewById(R.id.tvDetails);
 
-        adapter = new ArrayAdapter<>(
-                this,
-                android.R.layout.simple_list_item_1,
-                new ArrayList<>()
-        );
-
-        listView.setAdapter(adapter);
-
-        listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-            @Override
-            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                File file = recordingFiles.get(position);
-                playRecording(file);
-            }
-        });
+        // Initial state
+        setStatusDotColor(0xFFFF9800); // orange - starting
+        tvStatus.setText("Starting…");
+        tvDetails.setText("Waiting for service and backend connection");
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        loadRecordings();
+        IntentFilter filter = new IntentFilter(PhoneStreamService.ACTION_STATUS);
+
+        // For Android 13+ / targetSdk >= 33, must specify exported flag
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            // Only our app will send these broadcasts → NOT_EXPORTED is safest
+            registerReceiver(wsStatusReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            // Older behavior
+            registerReceiver(wsStatusReceiver, filter);
+        }
     }
 
     @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        if (mediaPlayer != null) {
-            mediaPlayer.release();
-            mediaPlayer = null;
+    protected void onPause() {
+        super.onPause();
+        unregisterReceiver(wsStatusReceiver);
+    }
+
+    private void updateUi(boolean connected, String status, long bytesSent) {
+        if (status == null) status = connected ? "Connected" : "Disconnected";
+
+        tvStatus.setText(status);
+
+        if (connected) {
+            setStatusDotColor(0xFF4CAF50); // green
+            tvDetails.setText("Streaming audio to backend\nTotal bytes sent: " + bytesSent);
+        } else {
+            setStatusDotColor(0xFFF44336); // red
+            tvDetails.setText("Not connected to backend\nBytes sent so far: " + bytesSent);
         }
     }
 
-    private void loadRecordings() {
-        recordingFiles.clear();
-        adapter.clear();
-
-        File recordingsDir = new File(getFilesDir(), "recordings");
-        if (!recordingsDir.exists()) {
-            Log.d(TAG, "No recordings dir yet: " + recordingsDir.getAbsolutePath());
-            adapter.notifyDataSetChanged();
-            return;
-        }
-
-        File[] files = recordingsDir.listFiles((dir, name) -> name.endsWith(".wav"));
-        if (files == null || files.length == 0) {
-            Log.d(TAG, "No .wav recordings found");
-            adapter.notifyDataSetChanged();
-            return;
-        }
-
-        // Sort newest first
-        Arrays.sort(files, new Comparator<File>() {
-            @Override
-            public int compare(File o1, File o2) {
-                return Long.compare(o2.lastModified(), o1.lastModified());
-            }
-        });
-
-        List<String> names = new ArrayList<>();
-        for (File f : files) {
-            recordingFiles.add(f);
-            names.add(f.getName());
-        }
-
-        adapter.addAll(names);
-        adapter.notifyDataSetChanged();
-    }
-
-    private void playRecording(File file) {
-        Log.d(TAG, "Playing file: " + file.getAbsolutePath());
-
-        if (mediaPlayer != null) {
-            mediaPlayer.release();
-            mediaPlayer = null;
-        }
-
-        mediaPlayer = new MediaPlayer();
-        try {
-            mediaPlayer.setDataSource(file.getAbsolutePath());
-            mediaPlayer.prepare();
-            mediaPlayer.start();
-            Toast.makeText(this, "Playing: " + file.getName(), Toast.LENGTH_SHORT).show();
-        } catch (IOException e) {
-            Log.e(TAG, "Error playing recording", e);
-            Toast.makeText(this, "Failed to play recording", Toast.LENGTH_SHORT).show();
-        }
+    private void setStatusDotColor(int color) {
+        // Make the dot circular with given color
+        GradientDrawable bg = new GradientDrawable();
+        bg.setShape(GradientDrawable.OVAL);
+        bg.setColor(color);
+        statusDot.setBackground(bg);
     }
 }
