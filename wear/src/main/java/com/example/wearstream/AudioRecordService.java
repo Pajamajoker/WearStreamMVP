@@ -149,29 +149,29 @@ public class AudioRecordService extends Service {
     // -------- Wear Data Layer: send /audio_chunk to phone --------
 
     private void sendChunkToPhone(byte[] data) {
-        // For MVP: on every chunk, get connected nodes and send.
-        // Not super efficient but fine for testing.
+        Log.d(TAG, "Preparing to send chunk of size: " + data.length);
+
         Wearable.getNodeClient(this).getConnectedNodes()
-                .addOnSuccessListener(new OnSuccessListener<List<Node>>() {
-                    @Override
-                    public void onSuccess(List<Node> nodes) {
-                        Log.d(TAG, "Connected nodes: " + nodes.size());
-                        for (Node node : nodes) {
-                            Wearable.getMessageClient(AudioRecordService.this)
-                                    .sendMessage(node.getId(), PATH_AUDIO_CHUNK, data)
-                                    .addOnSuccessListener(integer ->
-                                            Log.d(TAG, "Sent chunk (" + data.length +
-                                                    " bytes) to node " + node.getDisplayName()))
-                                    .addOnFailureListener(e ->
-                                            Log.e(TAG, "Failed to send chunk", e));
-                        }
+                .addOnSuccessListener(nodes -> {
+                    Log.d(TAG, "Connected nodes found: " + nodes.size());
+                    if (nodes.isEmpty()) {
+                        Log.e(TAG, "❌ No nodes connected! Phone not reachable.");
+                    }
+
+                    for (Node node : nodes) {
+                        Log.d(TAG, "Sending to node: " + node.getDisplayName() +
+                                " (" + node.getId() + ")");
+
+                        Wearable.getMessageClient(AudioRecordService.this)
+                                .sendMessage(node.getId(), PATH_AUDIO_CHUNK, data)
+                                .addOnSuccessListener(aVoid ->
+                                        Log.d(TAG, "✅ Chunk sent (" + data.length + " bytes)"))
+                                .addOnFailureListener(e ->
+                                        Log.e(TAG, "❌ Failed to send chunk", e));
                     }
                 })
-                .addOnFailureListener(new OnFailureListener() {
-                    @Override
-                    public void onFailure(Exception e) {
-                        Log.e(TAG, "getConnectedNodes failed", e);
-                    }
-                });
+                .addOnFailureListener(e ->
+                        Log.e(TAG, "❌ getConnectedNodes FAILED", e));
     }
+
 }

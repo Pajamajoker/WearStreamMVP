@@ -42,7 +42,7 @@ public class PhoneStreamService extends WearableListenerService {
     @Override
     public void onMessageReceived(@NonNull MessageEvent messageEvent) {
         String path = messageEvent.getPath();
-        Log.d(TAG, "onMessageReceived: path=" + path);
+        Log.d(TAG, "📩 onMessageReceived: path=" + path);
 
         if (!PATH_AUDIO_CHUNK.equals(path)) {
             super.onMessageReceived(messageEvent);
@@ -50,53 +50,61 @@ public class PhoneStreamService extends WearableListenerService {
         }
 
         byte[] data = messageEvent.getData();
-        Log.d(TAG, "Received chunk of size " + data.length + " bytes");
+        Log.d(TAG, "📥 Received chunk size = " + data.length + " bytes");
 
         synchronized (lock) {
             if (currentBuffer == null) {
+                Log.d(TAG, "Starting new 10-second buffer");
                 currentBuffer = new ByteArrayOutputStream();
             }
 
             try {
                 currentBuffer.write(data);
             } catch (IOException e) {
-                Log.e(TAG, "Failed to append audio chunk", e);
+                Log.e(TAG, "❌ Failed to write to buffer", e);
                 return;
             }
 
             int size = currentBuffer.size();
-            Log.d(TAG, "Current buffer size = " + size + " bytes");
+            Log.d(TAG, "Buffer so far = " + size + " bytes");
 
             if (size >= TARGET_BYTES) {
+                Log.d(TAG, "🎯 10 seconds reached! Saving WAV...");
+
                 byte[] pcmData = currentBuffer.toByteArray();
                 saveRecordingToFile(pcmData);
                 currentBuffer.reset();
+                Log.d(TAG, "🆕 Buffer reset for next recording");
             }
         }
     }
 
+
     private void saveRecordingToFile(byte[] pcmData) {
+        Log.d(TAG, "Saving WAV of " + pcmData.length + " bytes");
+
         File recordingsDir = new File(getFilesDir(), "recordings");
-        if (!recordingsDir.exists() && !recordingsDir.mkdirs()) {
-            Log.e(TAG, "Failed to create recordings dir: " + recordingsDir.getAbsolutePath());
-            return;
+        if (!recordingsDir.exists()) {
+            boolean created = recordingsDir.mkdirs();
+            Log.d(TAG, "Recordings dir created: " + created);
         }
 
         String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US)
                 .format(new Date());
         File outFile = new File(recordingsDir, "rec_" + timestamp + ".wav");
 
-        Log.d(TAG, "Saving recording to: " + outFile.getAbsolutePath());
+        Log.d(TAG, "Output file = " + outFile.getAbsolutePath());
 
         try (FileOutputStream fos = new FileOutputStream(outFile)) {
             writeWavHeader(fos, pcmData.length, SAMPLE_RATE, CHANNEL_COUNT, BYTES_PER_SAMPLE * 8);
             fos.write(pcmData);
             fos.flush();
-            Log.d(TAG, "Recording saved successfully: " + outFile.getName());
+            Log.d(TAG, "✅ WAV saved successfully: " + outFile.getName());
         } catch (IOException e) {
-            Log.e(TAG, "Error saving WAV file", e);
+            Log.e(TAG, "❌ Error saving WAV", e);
         }
     }
+
 
     private void writeWavHeader(FileOutputStream out,
                                 int pcmDataLength,
