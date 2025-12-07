@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+
+    <application
+        android:label="WearStreamMobile"
+        android:theme="@style/Theme.AppCompat.Light.NoActionBar">
+
+        <!-- Simple blank activity – white screen is fine for now -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- 🔹 Listener that receives /audio_chunk messages from the watch -->
+        <service
+            android:name=".PhoneStreamService"
+            android:exported="true">
+
+            <!-- Explicitly listen for MESSAGE_RECEIVED on /audio_chunk -->
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
+                <data
+                    android:scheme="wear"
+                    android:host="*"
+                    android:path="/audio_chunk" />
+            </intent-filter>
+
+            <!-- Optional but safe: allows Play Services to bind generically -->
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.BIND_LISTENER" />
+            </intent-filter>
+        </service>
+
+    </application>
+
+</manifest>
