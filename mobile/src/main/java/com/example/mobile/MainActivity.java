@@ -11,11 +11,14 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.TextView;
+import android.content.pm.PackageManager;
+import android.os.Build;
+import android.Manifest;
 
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "MainActivity";
-
+    private static final int REQ_NOTIFICATIONS = 1001;
     private View statusDot;
     private TextView tvStatus;
     private TextView tvDetails;
@@ -45,12 +48,41 @@ public class MainActivity extends AppCompatActivity {
         tvStatus = findViewById(R.id.tvStatus);
         tvDetails = findViewById(R.id.tvDetails);
 
+        // Ask for notification permission on Android 13+
+        requestNotificationPermissionIfNeeded();
+
         // Initial state
         setStatusDotColor(0xFFFF9800); // orange - starting
         tvStatus.setText("Starting…");
         tvDetails.setText("Waiting for service and backend connection");
     }
 
+    private void requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(
+                        new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                        REQ_NOTIFICATIONS
+                );
+            }
+        }
+    }
+
+    // optional: just to log the result
+    @Override
+    public void onRequestPermissionsResult(
+            int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQ_NOTIFICATIONS) {
+            if (grantResults.length > 0 &&
+                    grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                Log.d(TAG, "POST_NOTIFICATIONS granted");
+            } else {
+                Log.d(TAG, "POST_NOTIFICATIONS denied");
+            }
+        }
+    }
     @Override
     protected void onResume() {
         super.onResume();

@@ -2,6 +2,7 @@ package com.example.wearstream;
 
 import android.Manifest;
 import android.content.Intent;
+import android.os.Build;
 import android.os.Bundle;
 import android.widget.Button;
 
@@ -19,6 +20,12 @@ public class MainActivity extends AppCompatActivity {
                         if (granted) startRecordingService();
                     });
 
+    // 🔔 notification permission launcher (Wear OS 4 / Android 13+)
+    private final ActivityResultLauncher<String> notifPermLauncher =
+            registerForActivityResult(new ActivityResultContracts.RequestPermission(),
+                    granted -> {
+                        // nothing special to do, just needed once
+                    });
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -32,6 +39,11 @@ public class MainActivity extends AppCompatActivity {
 
         stopBtn.setOnClickListener(v ->
                 stopService(new Intent(this, AudioRecordService.class)));
+
+        // 🔔 Request notification permission on Wear OS 4+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
+        }
     }
 
     private void startRecordingService() {
